@@ -499,6 +499,40 @@ namespace tlhingan.beq
             return new OkObjectResult(tmpRet);
         }
 
+        [FunctionName("getJSonData")]
+        public static async Task<IActionResult> getJSonData(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
+        {
+            string tmpRet = "OK";
+            string i_dataID = req.Query["dataID"];
+
+            if (i_dataID == "words")
+            {
+                //Get all words from table
+                var query = TableOperation.Retrieve<allWords>(beqDef.c_partWord, beqDef.c_sortWord);
+                TableResult allWordRes = await tabCats.ExecuteAsync(query);
+
+                if (allWordRes.Result != null)
+                    tmpRet = ((allWords)allWordRes.Result).JsonWords;
+
+            }
+            else if (i_dataID == "categs")
+            {
+                //Get all categories from table
+                var query = TableOperation.Retrieve<allCategs>(beqDef.c_partCat, beqDef.c_sortCat);
+                TableResult allCatRes = await tabCats.ExecuteAsync(query);
+
+                if (allCatRes.Result != null)
+                   tmpRet = ((allCategs)allCatRes.Result).JsonCats;
+            }
+
+
+            return new OkObjectResult(tmpRet);
+        }
+
 
     }
 }
