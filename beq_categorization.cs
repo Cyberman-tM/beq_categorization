@@ -51,7 +51,7 @@ namespace tlhingan.beq
         /// <summary>
         /// KID <> ( Langu <> Description)
         /// </summary>
-        private Dictionary<string, Dictionary<string, string>> catDesc = new Dictionary<string, Dictionary<string, string>>();
+        private Dictionary<string, Dictionary<string, string>> catDesc;
 
         /// <summary>
         /// JSonDesc
@@ -105,7 +105,7 @@ namespace tlhingan.beq
     /// </summary>
     public class catIDs : TableEntity
     {
-        public Dictionary<string, string> name2ID = new Dictionary<string, string>();
+        public Dictionary<string, string> name2ID;
 
         public string JN2I { get; set; } = "";
 
@@ -158,7 +158,7 @@ namespace tlhingan.beq
         /// <summary>
         /// WIDs per KID
         /// </summary>
-        public Dictionary<string, List<string>> catWIDs = new Dictionary<string, List<string>>();
+        public Dictionary<string, List<string>> catWIDs;
         public string JSonKWID { set; get; } = "";
 
         public catWIDS()
@@ -222,7 +222,7 @@ namespace tlhingan.beq
     /// </summary>
     public class wordIDs : TableEntity
     {
-        public Dictionary<string, string> name2ID = new Dictionary<string, string>();
+        public Dictionary<string, string> name2ID;
 
         public string JN2I { get; set; } = "";
 
@@ -275,7 +275,7 @@ namespace tlhingan.beq
         /// <summary>
         /// KIDs per WID
         /// </summary>
-        public Dictionary<string, List<string>> wordKIDs = new Dictionary<string, List<string>>();
+        public Dictionary<string, List<string>> wordKIDs;
         public string JSonWKID { set; get; } = "";
 
         public wordKIDS()
