@@ -514,11 +514,12 @@ namespace tlhingan.beq
             ILogger log)
         {
             string tmpWordID = "";
-            fullWord allWords = new fullWord();
-            allWords = getWordsData(tabCats).Result;
+            fullWord allWords = getWordsData(tabCats).Result;
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             List<bulkWordData> bulkWords = JsonConvert.DeserializeObject<List<bulkWordData>>(requestBody);
+
+            log.LogInformation(bulkWords.Count.ToString());
 
             foreach (bulkWordData oneWord in bulkWords)
             {
