@@ -383,9 +383,20 @@ namespace tlhingan.beq
 
         public class bulkCatData
         {
-            public string name;
-            public string langu;
-            public string desc;
+            public string n;
+            public string l;
+            public string d;
+        }
+
+        public class bulkW2CData
+        {
+            public string k;
+            public string n;
+        }
+
+        public class bulkWordData
+        {
+            public string n;
         }
 
         /// <summary>
@@ -417,9 +428,9 @@ namespace tlhingan.beq
             //Process bulk data
             foreach (bulkCatData bdc in allBDC)
             {
-                i_catName = bdc.name;
-                i_catDesc = bdc.desc;
-                i_catDLan = bdc.langu;
+                i_catName = bdc.n;
+                i_catDesc = bdc.d;
+                i_catDLan = bdc.l;
 
                 tmpRet = intAddCat(allCat, i_catName, i_catDLan, i_catDesc);
             }
@@ -507,15 +518,15 @@ namespace tlhingan.beq
             allWords = getWordsData(tabCats).Result;
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            List<string> bulkWords = JsonConvert.DeserializeObject<List<string>>(requestBody);
+            List<bulkWordData> bulkWords = JsonConvert.DeserializeObject<List<bulkWordData>>(requestBody);
 
-            foreach (string oneWord in bulkWords)
+            foreach (bulkWordData oneWord in bulkWords)
             {
-                if (!allWords.allIDs.name2ID.ContainsKey(oneWord))
+                if (!allWords.allIDs.name2ID.ContainsKey(oneWord.n))
                 {
 
                     tmpWordID = 'W' + (allWords.allIDs.name2ID.Count + 1).ToString("d6");
-                    allWords.allIDs.addN2I(oneWord, tmpWordID);
+                    allWords.allIDs.addN2I(oneWord.n, tmpWordID);
                 }
             }
             await saveWords(tabCats, allWords);
@@ -562,15 +573,15 @@ namespace tlhingan.beq
         {
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            Dictionary<string, string> bulkCW = JsonConvert.DeserializeObject<Dictionary<string, string>>(requestBody);
+            List<bulkW2CData> bulkCW = JsonConvert.DeserializeObject<List<bulkW2CData>>(requestBody);
 
             fullWord allWords = getWordsData(tabCats).Result;
             fullCat allCat = getCatsData(tabCats).Result;
 
-            foreach (KeyValuePair<string, string> c2w in bulkCW)
+            foreach (bulkW2CData c2w in bulkCW)
             {
-                string KID = allCat.allIDs.name2ID[c2w.Key];
-                string WID = allWords.allIDs.name2ID[c2w.Value];
+                string KID = allCat.allIDs.name2ID[c2w.k];
+                string WID = allWords.allIDs.name2ID[c2w.n];
 
                 if (allWords.allIDs.name2ID.ContainsKey(WID) && allCat.allIDs.name2ID.ContainsKey(KID))
                 {
