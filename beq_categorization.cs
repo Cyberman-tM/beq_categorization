@@ -357,53 +357,94 @@ namespace tlhingan.beq
                 //Get category data from table
                 fullCat allCat = getCatsData(tabCats).Result;
 
-                //Haben wir für diesen Namen schon eine KID?
-                string tmpCatKID = allCat.allIDs.getID(i_catName) ?? "";
-                int maxSubCat = 0;
-
-                //Keine KID: wir müssen die Kategorie anlegen
-                if (tmpCatKID == null || tmpCatKID == "")
-                {
-                    string newCatID = "K" + allCat.allIDs.name2ID.Count.ToString("d3");
-
-                    //Ist es eine Unterkategorie?
-                    if (i_catName.Contains('_'))
-                    {
-                        string[] subCats = i_catName.Split('_');
-                        string supCat = string.Join('_', subCats, 0, subCats.Length - 1);
-                        string tmpSupCatID = allCat.allIDs.getID(supCat) ?? "";
-
-                        //FAlls wir keine Überkategorie finden brauchen wir keine neue ID -> FEhler
-                        newCatID = "";
-                        //Überkategorie gefunden, bauen wir die neu SubKategorie-ID auf
-                        if (tmpSupCatID != "")
-                        {
-                            foreach (string singleKID in allCat.allIDs.name2ID.Values)
-                                if (singleKID.StartsWith(tmpSupCatID))
-                                    maxSubCat++;
-
-                            newCatID = tmpSupCatID + '.' + maxSubCat.ToString("d3");
-                        }
-                    }
-
-                    if (newCatID != "")
-                    {
-                        allCat.allIDs.addN2I(i_catName, newCatID);
-                        allCat.allDescs.addDesc(newCatID, i_catDLan, i_catDesc);
-
-                        await saveCats(tabCats, allCat);
-                    }
-
-                    tmpRet = newCatID;
-                }
-                else
-                {
-                    tmpRet = tmpCatKID;
-                }
+                tmpRet = intAddCat(allCat, i_catName, i_catDLan, i_catDesc);
+                if (tmpRet != "")
+                    await saveCats(tabCats, allCat);
             }
 
             //Entweder enthält tmpRet eine ID oder ist leer
             return new OkObjectResult(tmpRet);
+        }
+
+        /// <summary>
+        /// Add many categories to the list
+        /// check if it's a child (i.e. MainKateg_SubKateg_SubSubKateg and create ID accordingly)
+        /// </summary>
+        [FunctionName("createCategBulk")]
+        public static async Task<IActionResult> createCategBulk(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
+        {
+            string tmpRet = "";
+
+            //Bulk data - array of objects with name, langu, desc as attributes
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            dynamic data = JsonConvert.DeserializeObject(requestBody);
+
+            string i_catName = "";
+            string i_catDesc = "";
+            string i_catDLan = "";
+
+            //Get category data from table
+            fullCat allCat = getCatsData(tabCats).Result;
+
+            //Process bulk data
+            foreach (dynamic dataLine in data.lines)
+            {
+                i_catName = dataLine.name;
+                i_catDesc = dataLine.desc;
+                i_catDLan = dataLine.langu;
+
+                tmpRet = intAddCat(allCat, i_catName, i_catDLan, i_catDesc);
+            }
+
+            await saveCats(tabCats, allCat);
+
+            //Entweder enthält tmpRet eine ID oder ist leer
+            return new OkObjectResult(tmpRet);
+        }
+
+
+        public static string intAddCat(fullCat allCat, string i_catName, string i_catDLan, string i_catDesc)
+        {
+            //Haben wir für diesen Namen schon eine KID?
+            string newCatKID = allCat.allIDs.getID(i_catName) ?? "";
+            int maxSubCat = 0;
+
+            //Keine KID: wir müssen die Kategorie anlegen
+            if (newCatKID == null || newCatKID == "")
+            {
+                newCatKID = "K" + allCat.allIDs.name2ID.Count.ToString("d3");
+
+                //Ist es eine Unterkategorie?
+                if (i_catName.Contains('_'))
+                {
+                    string[] subCats = i_catName.Split('_');
+                    string supCat = string.Join('_', subCats, 0, subCats.Length - 1);
+                    string tmpSupCatID = allCat.allIDs.getID(supCat) ?? "";
+
+                    //FAlls wir keine Überkategorie finden brauchen wir keine neue ID -> FEhler
+                    newCatKID = "";
+                    //Überkategorie gefunden, bauen wir die neu SubKategorie-ID auf
+                    if (tmpSupCatID != "")
+                    {
+                        foreach (string singleKID in allCat.allIDs.name2ID.Values)
+                            if (singleKID.StartsWith(tmpSupCatID))
+                                maxSubCat++;
+
+                        newCatKID = tmpSupCatID + '.' + maxSubCat.ToString("d3");
+                    }
+                }
+            }
+            if (newCatKID != "")
+            {
+                allCat.allIDs.addN2I(i_catName, newCatKID);
+                allCat.allDescs.addDesc(newCatKID, i_catDLan, i_catDesc);
+            }
+
+            return newCatKID;
         }
 
         [FunctionName("addWord")]
