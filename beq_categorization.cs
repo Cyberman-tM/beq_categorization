@@ -328,6 +328,21 @@ namespace tlhingan.beq
     public static class beq_categorization
     {
         /// <summary>
+        ///     Wake up
+        /// </summary>
+        [FunctionName("wakeup")]
+        public static async Task<IActionResult> wakeup(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
+        {
+            //Nothing to do...
+
+            return null;
+        }
+
+        /// <summary>
         /// Add a new(?) category to the list
         /// If it exists - return ID,
         /// if not - create and return ID
@@ -366,6 +381,13 @@ namespace tlhingan.beq
             return new OkObjectResult(tmpRet);
         }
 
+        public class bulkCatData
+        {
+            public string name;
+            public string langu;
+            public string desc;
+        }
+
         /// <summary>
         /// Add many categories to the list
         /// check if it's a child (i.e. MainKateg_SubKateg_SubSubKateg and create ID accordingly)
@@ -379,9 +401,11 @@ namespace tlhingan.beq
         {
             string tmpRet = "";
 
+            List<bulkCatData> allBDC;
+
             //Bulk data - array of objects with name, langu, desc as attributes
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
+            allBDC = JsonConvert.DeserializeObject<List<bulkCatData>>(requestBody);
 
             string i_catName = "";
             string i_catDesc = "";
@@ -391,11 +415,11 @@ namespace tlhingan.beq
             fullCat allCat = getCatsData(tabCats).Result;
 
             //Process bulk data
-            foreach (dynamic dataLine in data.lines)
+            foreach (bulkCatData bdc in allBDC)
             {
-                i_catName = dataLine.name;
-                i_catDesc = dataLine.desc;
-                i_catDLan = dataLine.langu;
+                i_catName = bdc.name;
+                i_catDesc = bdc.desc;
+                i_catDLan = bdc.langu;
 
                 tmpRet = intAddCat(allCat, i_catName, i_catDLan, i_catDesc);
             }
@@ -463,13 +487,39 @@ namespace tlhingan.beq
 
             if (i_fullWord != "" && !allWords.allIDs.name2ID.ContainsKey(i_fullWord))
             {
-                tmpWordID = 'W' + (allWords.allIDs.name2ID.Count + 1).ToString("d3");
+                tmpWordID = 'W' + (allWords.allIDs.name2ID.Count + 1).ToString("d6");
                 allWords.allIDs.addN2I(i_fullWord, tmpWordID);
 
                 await saveWords(tabCats, allWords);
             }
-
             return new OkObjectResult(tmpWordID);
+        }
+
+        [FunctionName("addWordBulk")]
+        public static async Task<IActionResult> addWordBulk(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
+        {
+            string tmpWordID = "";
+            fullWord allWords = new fullWord();
+            allWords = getWordsData(tabCats).Result;
+
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            List<string> bulkWords = JsonConvert.DeserializeObject<List<string>>(requestBody);
+
+            foreach (string oneWord in bulkWords)
+            {
+                if (!allWords.allIDs.name2ID.ContainsKey(oneWord))
+                {
+
+                    tmpWordID = 'W' + (allWords.allIDs.name2ID.Count + 1).ToString("d6");
+                    allWords.allIDs.addN2I(oneWord, tmpWordID);
+                }
+            }
+            await saveWords(tabCats, allWords);
+            return new OkObjectResult("");
         }
 
 
@@ -500,6 +550,37 @@ namespace tlhingan.beq
                     await saveWords(tabCats, allWords);
                 }
             }
+            return new OkObjectResult("");
+        }
+
+        [FunctionName("catWordBulk")]
+        public static async Task<IActionResult> catWordBulk(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
+        {
+
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            Dictionary<string, string> bulkCW = JsonConvert.DeserializeObject<Dictionary<string, string>>(requestBody);
+
+            fullWord allWords = getWordsData(tabCats).Result;
+            fullCat allCat = getCatsData(tabCats).Result;
+
+            foreach (KeyValuePair<string, string> c2w in bulkCW)
+            {
+                string KID = allCat.allIDs.name2ID[c2w.Key];
+                string WID = allWords.allIDs.name2ID[c2w.Value];
+
+                if (allWords.allIDs.name2ID.ContainsKey(WID) && allCat.allIDs.name2ID.ContainsKey(KID))
+                {
+                    allCat.allWIDs.addWID(KID, WID);
+                    allWords.allKIDS.addKID(WID, KID);
+                }
+            }
+
+            await saveCats(tabCats, allCat);
+            await saveWords(tabCats, allWords);
             return new OkObjectResult("");
         }
 
