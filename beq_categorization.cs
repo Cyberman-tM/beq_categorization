@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using System.Web;
 using System.Xml.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
@@ -343,7 +344,7 @@ namespace tlhingan.beq
             string tmpRet = "";
             //Prepare to read request body
             string i_catName = req.Query["catName"];
-            string i_catDesc = req.Query["catDesc"];
+            string i_catDesc = HttpUtility.UrlDecode(req.Query["catDesc"]);
             string i_catDLan = req.Query["catDLan"];
 
             if (i_catName != null && i_catName != "")
