@@ -17,523 +17,568 @@ namespace tlhingan.beq
     public class beqDef
     {
         /// <summary>
-        /// Partition Categories
+        /// Category, ID to Name
         /// </summary>
-        public const string c_partCat = "categ";
-        /// <summary>
-        /// Category IDs
-        /// </summary>
-        public const string c_rowCatKid = "catKID";
+        public const string partCatI2N = "CatI2N";
 
+        /// <summary>
+        /// Category, Name to ID
+        /// </summary>
+        public const string partCatN2I = "CatN2I";
+
+        /// <summary>
+        /// Category, Category to Words(IDs)
+        /// </summary>
+        public const string partCat2Words = "Cat2Words";
+
+        /// <summary>
+        /// Category, Descriptions
+        /// </summary>
+        public const string partCatDesc = "CatDesc";
+
+        //
+        //
+        //
+
+        /// <summary>
+        /// Words, ID to Name
+        /// </summary>
+        public const string partWordI2N = "WordI2N";
+
+        /// <summary>
+        /// Words, Name to ID
+        /// </summary>
+        public const string partWordN2I = "WordN2I";
+
+        /// <summary>
+        /// Words, Word to Categories
+        /// </summary>
+        public const string partWord2Cat = "Word2Cat";
+    }
+
+
+    /// <summary>
+    /// Secondary index for Categories - get ID from name first if necessary,
+    /// Name class also contains number of subclasses
+    /// </summary>
+    public class CatI2N : TableEntity
+    {
+        public string fullName { get; set; } = "";
+        public CatI2N()
+        {
+            PartitionKey = beqDef.partCatI2N;
+            RowKey = "";
+        }
+
+        /// <summary>
+        /// ROWKEY DARF NICHT LEER SEIN!
+        /// </summary>
+        /// <param name="partKey">fixer Wert, ignore</param>
+        /// <param name="rowKey">ID der Kategorie, KID</param>
+        public CatI2N(string partKey = beqDef.partCatI2N, string i_rowKey = "")
+        {
+            PartitionKey = partKey;
+            RowKey = i_rowKey;
+        }
+
+        public void setKID(string i_KID)
+        {
+            RowKey = i_KID;
+        }
+
+        public void setName(string i_fullName)
+        {
+            fullName = i_fullName;
+        }
+    }
+
+    public class CatN2I : TableEntity
+    {
+        public string KID { get; set; } = "";
+
+        /// <summary>
+        /// Number of subcategories, if this is a supercategory
+        /// </summary>
+        public int subCatCount { get; set; } = 0;
+
+        public CatN2I()
+        {
+            PartitionKey = beqDef.partCatN2I;
+            RowKey = "";
+        }
+
+        public CatN2I(string partKey = beqDef.partCatN2I, string i_rowKey = "")
+        {
+            PartitionKey = partKey;
+            RowKey = i_rowKey;
+        }
+
+        public void setKID(string i_KID)
+        {
+            KID = i_KID;
+        }
+
+        public void setName(string i_Name)
+        {
+            RowKey = i_Name;
+        }
+    }
+
+    public class CatI2Desc : TableEntity
+    {
+        public string Langu { get; set; } = "";
+        public string Desc { set; get; } = "";
+
+        public CatI2Desc()
+        {
+            PartitionKey = beqDef.partCatDesc;
+            RowKey = "";
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="partKey">fixed value, ignore</param>
+        /// <param name="rowKey">KID</param>
+        public CatI2Desc(string partKey = beqDef.partCatDesc, string i_rowKey = "")
+        {
+            PartitionKey = partKey;
+            RowKey = i_rowKey;
+        }
+
+        public void setKID(string i_KID)
+        {
+            RowKey = i_KID;
+        }
+
+        public void setDesc(string i_langu, string i_desc)
+        {
+            Langu = i_langu;
+            Desc = i_desc;
+        }
+    }
+
+    /*
         /// <summary>
         /// Category Descriptions
+        /// Key: KID
+        /// Subkey: Langu
         /// </summary>
-        public const string c_rowCatDesc = "catDesc";
-
-        /// <summary>
-        /// Category WIDs
-        /// </summary>
-        public const string c_rowCatWID = "catWID";
-
-        public const string c_partWord = "word";
-        public const string c_rowWordWID = "wordWID";
-        public const string c_rowWordKID = "wordKID";
-
-    }
-
-
-    /// <summary>
-    /// Category Descriptions
-    /// Key: KID
-    /// Subkey: Langu
-    /// </summary>
-    public class catDescs : TableEntity
-    {
-        /// <summary>
-        /// KID <> ( Langu <> Description)
-        /// </summary>
-        private Dictionary<string, Dictionary<string, string>> catDesc;
-
-        /// <summary>
-        /// JSonDesc
-        /// </summary>
-        public string JD { set; get; } = "";
-
-        public catDescs()
+        public class catDescs : TableEntity
         {
-            this.PartitionKey = beqDef.c_partCat;
-            this.RowKey = beqDef.c_rowCatDesc;
+            /// <summary>
+            /// KID <> ( Langu <> Description)
+            /// </summary>
+            private Dictionary<string, Dictionary<string, string>> catDesc;
 
-            reload();
-        }
+            /// <summary>
+            /// JSonDesc
+            /// </summary>
+            public string JD { set; get; } = "";
 
-        public catDescs(string partition = beqDef.c_partCat, string rowkey = beqDef.c_rowCatDesc)
-        {
-            this.PartitionKey = beqDef.c_partCat;
-            this.RowKey = beqDef.c_rowCatDesc;
-
-            reload();
-        }
-
-        public void reload()
-        {
-            catDesc = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, string>>>(JD);
-
-            if (catDesc == null)
-                catDesc = new Dictionary<string, Dictionary<string, string>>();
-        }
-
-        public void addDesc(string KID, string Langu, string Desc)
-        {
-            Dictionary<string, string> aDesc = new Dictionary<string, string>();
-            if (catDesc.ContainsKey(KID))
-                aDesc = catDesc[KID];
-            else
-                catDesc.Add(KID, new Dictionary<string, string>());
-
-            aDesc[Langu] = Desc;
-
-            catDesc[KID] = aDesc;
-
-            JD = JsonConvert.SerializeObject(catDesc);
-        }
-    }
-
-    /// <summary>
-    /// Category IDs
-    /// Key: full name
-    /// (simple dictionary)
-    /// </summary>
-    public class catIDs : TableEntity
-    {
-        public Dictionary<string, string> name2ID;
-
-        public string JN2I { get; set; } = "";
-
-        public catIDs()
-        {
-            this.PartitionKey = beqDef.c_partCat;
-            this.RowKey = beqDef.c_rowCatKid;
-
-            reload();
-        }
-
-        public catIDs(string partition = beqDef.c_partCat, string rowkey = beqDef.c_rowCatKid)
-        {
-            this.PartitionKey = beqDef.c_partCat;
-            this.RowKey = beqDef.c_rowCatKid;
-
-            reload();
-        }
-
-        public void reload()
-        {
-            name2ID = JsonConvert.DeserializeObject<Dictionary<string, string>>(JN2I);
-            if (name2ID == null)
-                name2ID = new Dictionary<string, string>();
-        }
-
-        public void addN2I(string name, string KID)
-        {
-            if (!name2ID.ContainsKey(name))
-                name2ID.Add(name, KID);
-
-            JN2I = JsonConvert.SerializeObject(name2ID);
-        }
-
-        public string getID(string name)
-        {
-            string tmpRet = null;
-            if (name2ID.ContainsKey(name))
-                tmpRet = name2ID[name];
-
-            return tmpRet;
-        }
-    }
-
-    /// <summary>
-    /// WIDs pro KID
-    /// </summary>
-    public class catWIDS : TableEntity
-    {
-        /// <summary>
-        /// WIDs per KID
-        /// </summary>
-        public Dictionary<string, List<string>> catWIDs;
-        public string JSonKWID { set; get; } = "";
-
-        public catWIDS()
-        {
-            this.PartitionKey = beqDef.c_partCat;
-            this.RowKey = beqDef.c_rowCatWID;
-
-            reload();
-        }
-        public catWIDS(string partition = beqDef.c_partCat, string rowkey = beqDef.c_rowCatWID)
-        {
-            this.PartitionKey = beqDef.c_partCat;
-            this.RowKey = beqDef.c_rowCatWID;
-
-            reload();
-        }
-
-        public void reload()
-        {
-            catWIDs = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(JSonKWID);
-            if (catWIDs == null)
-                catWIDs = new Dictionary<string, List<string>>();
-        }
-
-        public void addWID(string KID, string WID)
-        {
-            List<string> aKID = new List<string>();
-            if (!catWIDs.ContainsKey(KID))
-                catWIDs.Add(KID, aKID);
-            else
-                aKID = catWIDs[KID];
-
-            if (!aKID.Contains(WID))
+            public catDescs()
             {
-                aKID.Add(WID);
-                catWIDs[KID] = aKID;
-                JSonKWID = JsonConvert.SerializeObject(catWIDs);
-            }
-        }
-    }
+                this.PartitionKey = beqDef.c_partCat;
+                this.RowKey = beqDef.c_rowCatDesc;
 
-    /// <summary>
-    /// Einfach nur ein Behälter
-    /// </summary>
-    public class fullCat
-    {
-        public catDescs allDescs;
-        public catIDs allIDs;
-        public catWIDS allWIDs;
-    }
-
-
-    /// <summary>
-    /// Jetzt kommen die Worte :-)
-    /// </summary>
-
-    /// <summary>
-    /// word IDs
-    /// Key: full word
-    /// (simple dictionary)
-    /// </summary>
-    public class wordIDs : TableEntity
-    {
-        public Dictionary<string, string> name2ID;
-
-        public string JN2I { get; set; } = "";
-
-        public wordIDs()
-        {
-            this.PartitionKey = beqDef.c_partWord;
-            this.RowKey = beqDef.c_rowWordWID;
-
-            reload();
-        }
-
-        public wordIDs(string partition = beqDef.c_partWord, string rowkey = beqDef.c_rowWordWID)
-        {
-            this.PartitionKey = beqDef.c_partWord;
-            this.RowKey = beqDef.c_rowWordWID;
-
-            reload();
-        }
-
-        public void reload()
-        {
-            name2ID = JsonConvert.DeserializeObject<Dictionary<string, string>>(JN2I);
-            if (name2ID == null)
-                name2ID = new Dictionary<string, string>();
-        }
-
-        public void addN2I(string name, string WID)
-        {
-            if (!name2ID.ContainsKey(name))
-                name2ID.Add(name, WID);
-
-            JN2I = JsonConvert.SerializeObject(name2ID);
-        }
-
-        public string getID(string name)
-        {
-            string tmpRet = null;
-            if (name2ID.ContainsKey(name))
-                tmpRet = name2ID[name];
-
-            return tmpRet;
-        }
-    }
-
-    /// <summary>
-    /// KIDs pro WID
-    /// </summary>
-    public class wordKIDS : TableEntity
-    {
-        /// <summary>
-        /// KIDs per WID
-        /// </summary>
-        public Dictionary<string, List<string>> wordKIDs;
-        public string JSonWKID { set; get; } = "";
-
-        public wordKIDS()
-        {
-            this.PartitionKey = beqDef.c_partWord;
-            this.RowKey = beqDef.c_rowWordKID;
-
-            reload();
-        }
-        public wordKIDS(string partition = beqDef.c_partWord, string rowkey = beqDef.c_rowWordKID)
-        {
-            this.PartitionKey = beqDef.c_partWord;
-            this.RowKey = beqDef.c_rowWordKID;
-
-            reload();
-        }
-
-        public void reload()
-        {
-            wordKIDs = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(JSonWKID);
-            if (wordKIDs == null)
-                wordKIDs = new Dictionary<string, List<string>>();
-        }
-
-        public void addKID(string WID, string KID)
-        {
-            List<string> aKID = new List<string>();
-            if (!wordKIDs.ContainsKey(WID))
-                wordKIDs.Add(WID, aKID);
-            else
-                aKID = wordKIDs[WID];
-
-            aKID.Add(KID);
-
-            wordKIDs[WID] = aKID;
-
-            JSonWKID = JsonConvert.SerializeObject(wordKIDs);
-        }
-    }
-
-    public class fullWord
-    {
-        public wordKIDS allKIDS = new wordKIDS();
-        public wordIDs allIDs = new wordIDs();
-    }
-
-
-
-    public static class beq_categorization
-    {
-        /// <summary>
-        ///     Wake up
-        /// </summary>
-        [FunctionName("wakeup")]
-        public static async Task<IActionResult> wakeup(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
-            [Table("categorization")] CloudTable tabCats,
-            ILogger log)
-        {
-            //Nothing to do...
-
-            return null;
-        }
-
-        /// <summary>
-        /// Add a new(?) category to the list
-        /// If it exists - return ID,
-        /// if not - create and return ID
-        /// check if it's a child (i.e. MainKateg_SubKateg_SubSubKateg and create ID accordingly)
-        /// </summary>
-        /// <returns></returns>
-        [FunctionName("createCateg")]
-        public static async Task<IActionResult> createCateg(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
-            [Table("categorization")] CloudTable tabCats,
-            ILogger log)
-        {
-            string tmpRet = "";
-            //Prepare to read request body
-            string i_catName = req.Query["catName"];
-            string i_catDesc = HttpUtility.UrlDecode(req.Query["catDesc"]);
-            string i_catDLan = req.Query["catDLan"];
-
-            if (i_catName != null && i_catName != "")
-            {
-                if (i_catDesc == null)
-                    i_catDesc = "";
-                if (i_catDLan == null)
-                    i_catDLan = "en";
-
-                //Get category data from table
-                fullCat allCat = getCatsData(tabCats).Result;
-
-                tmpRet = intAddCat(allCat, i_catName, i_catDLan, i_catDesc);
-                if (tmpRet != "")
-                    await saveCats(tabCats, allCat);
+                reload();
             }
 
-            //Entweder enthält tmpRet eine ID oder ist leer
-            return new OkObjectResult(tmpRet);
-        }
+            public catDescs(string partition = beqDef.c_partCat, string rowkey = beqDef.c_rowCatDesc)
+            {
+                this.PartitionKey = beqDef.c_partCat;
+                this.RowKey = beqDef.c_rowCatDesc;
 
-        public class bulkCatData
-        {
-            public string n;
-            public string l;
-            public string d;
-        }
+                reload();
+            }
 
-        public class bulkW2CData
-        {
-            public string k;
-            public string n;
-        }
+            public void reload()
+            {
+                catDesc = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, string>>>(JD);
 
-        public class bulkWordData
-        {
-            public string n;
+                if (catDesc == null)
+                    catDesc = new Dictionary<string, Dictionary<string, string>>();
+            }
+
+            public void addDesc(string KID, string Langu, string Desc)
+            {
+                Dictionary<string, string> aDesc = new Dictionary<string, string>();
+                if (catDesc.ContainsKey(KID))
+                    aDesc = catDesc[KID];
+                else
+                    catDesc.Add(KID, new Dictionary<string, string>());
+
+                aDesc[Langu] = Desc;
+
+                catDesc[KID] = aDesc;
+
+                JD = JsonConvert.SerializeObject(catDesc);
+            }
         }
 
         /// <summary>
-        /// Add many categories to the list
-        /// check if it's a child (i.e. MainKateg_SubKateg_SubSubKateg and create ID accordingly)
+        /// Category IDs
+        /// Key: full name
+        /// (simple dictionary)
         /// </summary>
-        [FunctionName("createCategBulk")]
-        public static async Task<IActionResult> createCategBulk(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
-            [Table("categorization")] CloudTable tabCats,
-            ILogger log)
+        public class catIDs : TableEntity
         {
-            string tmpRet = "";
+            public Dictionary<string, string> name2ID;
 
-            List<bulkCatData> allBDC;
+            public string JN2I { get; set; } = "";
 
-            //Bulk data - array of objects with name, langu, desc as attributes
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            allBDC = JsonConvert.DeserializeObject<List<bulkCatData>>(requestBody);
-
-            string i_catName = "";
-            string i_catDesc = "";
-            string i_catDLan = "";
-
-            //Get category data from table
-            fullCat allCat = getCatsData(tabCats).Result;
-
-            //Process bulk data
-            foreach (bulkCatData bdc in allBDC)
+            public catIDs()
             {
-                i_catName = bdc.n;
-                i_catDesc = bdc.d;
-                i_catDLan = bdc.l;
+                this.PartitionKey = beqDef.c_partCat;
+                this.RowKey = beqDef.c_rowCatKid;
 
-                tmpRet = intAddCat(allCat, i_catName, i_catDLan, i_catDesc);
+                reload();
             }
 
-            await saveCats(tabCats, allCat);
+            public catIDs(string partition = beqDef.c_partCat, string rowkey = beqDef.c_rowCatKid)
+            {
+                this.PartitionKey = beqDef.c_partCat;
+                this.RowKey = beqDef.c_rowCatKid;
 
-            //Entweder enthält tmpRet eine ID oder ist leer
-            return new OkObjectResult(tmpRet);
+                reload();
+            }
+
+            public void reload()
+            {
+                name2ID = JsonConvert.DeserializeObject<Dictionary<string, string>>(JN2I);
+                if (name2ID == null)
+                    name2ID = new Dictionary<string, string>();
+            }
+
+            public void addN2I(string name, string KID)
+            {
+                if (!name2ID.ContainsKey(name))
+                    name2ID.Add(name, KID);
+
+                JN2I = JsonConvert.SerializeObject(name2ID);
+            }
+
+            public string getID(string name)
+            {
+                string tmpRet = null;
+                if (name2ID.ContainsKey(name))
+                    tmpRet = name2ID[name];
+
+                return tmpRet;
+            }
         }
 
-
-        public static string intAddCat(fullCat allCat, string i_catName, string i_catDLan, string i_catDesc)
+        /// <summary>
+        /// WIDs pro KID
+        /// </summary>
+        public class catWIDS : TableEntity
         {
-            //Haben wir für diesen Namen schon eine KID?
-            string newCatKID = allCat.allIDs.getID(i_catName) ?? "";
-            int maxSubCat = 0;
+            /// <summary>
+            /// WIDs per KID
+            /// </summary>
+            public Dictionary<string, List<string>> catWIDs;
+            public string JSonKWID { set; get; } = "";
 
-            //Keine KID: wir müssen die Kategorie anlegen
-            if (newCatKID == null || newCatKID == "")
+            public catWIDS()
             {
-                newCatKID = "K" + allCat.allIDs.name2ID.Count.ToString("d3");
+                this.PartitionKey = beqDef.c_partCat;
+                this.RowKey = beqDef.c_rowCatWID;
 
-                //Ist es eine Unterkategorie?
-                if (i_catName.Contains('_'))
+                reload();
+            }
+            public catWIDS(string partition = beqDef.c_partCat, string rowkey = beqDef.c_rowCatWID)
+            {
+                this.PartitionKey = beqDef.c_partCat;
+                this.RowKey = beqDef.c_rowCatWID;
+
+                reload();
+            }
+
+            public void reload()
+            {
+                catWIDs = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(JSonKWID);
+                if (catWIDs == null)
+                    catWIDs = new Dictionary<string, List<string>>();
+            }
+
+            public void addWID(string KID, string WID)
+            {
+                List<string> aKID = new List<string>();
+                if (!catWIDs.ContainsKey(KID))
+                    catWIDs.Add(KID, aKID);
+                else
+                    aKID = catWIDs[KID];
+
+                if (!aKID.Contains(WID))
                 {
-                    string[] subCats = i_catName.Split('_');
-                    string supCat = string.Join('_', subCats, 0, subCats.Length - 1);
-                    string tmpSupCatID = allCat.allIDs.getID(supCat) ?? "";
-
-                    //FAlls wir keine Überkategorie finden brauchen wir keine neue ID -> FEhler
-                    newCatKID = "";
-                    //Überkategorie gefunden, bauen wir die neu SubKategorie-ID auf
-                    if (tmpSupCatID != "")
-                    {
-                        foreach (string singleKID in allCat.allIDs.name2ID.Values)
-                            if (singleKID.StartsWith(tmpSupCatID))
-                                maxSubCat++;
-
-                        newCatKID = tmpSupCatID + '.' + maxSubCat.ToString("d3");
-                    }
+                    aKID.Add(WID);
+                    catWIDs[KID] = aKID;
+                    JSonKWID = JsonConvert.SerializeObject(catWIDs);
                 }
             }
-            if (newCatKID != "")
-            {
-                allCat.allIDs.addN2I(i_catName, newCatKID);
-                allCat.allDescs.addDesc(newCatKID, i_catDLan, i_catDesc);
-            }
-
-            return newCatKID;
         }
 
-        [FunctionName("addWord")]
-        public static async Task<IActionResult> addWord(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
-            [Table("categorization")] CloudTable tabCats,
-            ILogger log)
+        /// <summary>
+        /// Einfach nur ein Behälter
+        /// </summary>
+        public class fullCat
         {
-            string tmpWordID = "";
-            fullWord allWords = new fullWord();
-            allWords = getWordsData(tabCats).Result;
-
-            string i_fullWord = req.Query["fullWord"];
-            i_fullWord = i_fullWord ?? "";
-
-            if (i_fullWord != "" && !allWords.allIDs.name2ID.ContainsKey(i_fullWord))
-            {
-                tmpWordID = 'W' + (allWords.allIDs.name2ID.Count + 1).ToString("d6");
-                allWords.allIDs.addN2I(i_fullWord, tmpWordID);
-
-                await saveWords(tabCats, allWords);
-            }
-            return new OkObjectResult(tmpWordID);
+            public catDescs allDescs;
+            public catIDs allIDs;
+            public catWIDS allWIDs;
         }
 
-        [FunctionName("addWordBulk")]
-        public static async Task<IActionResult> addWordBulk(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
-            [Table("categorization")] CloudTable tabCats,
-            ILogger log)
+
+        /// <summary>
+        /// Jetzt kommen die Worte :-)
+        /// </summary>
+
+        /// <summary>
+        /// word IDs
+        /// Key: full word
+        /// (simple dictionary)
+        /// </summary>
+        public class wordIDs : TableEntity
         {
-            string tmpWordID = "";
-            fullWord allWords = getWordsData(tabCats).Result;
+            public Dictionary<string, string> name2ID;
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            List<bulkWordData> bulkWords = JsonConvert.DeserializeObject<List<bulkWordData>>(requestBody);
+            public string JN2I { get; set; } = "";
 
-            log.LogInformation(bulkWords.Count.ToString());
-
-            foreach (bulkWordData oneWord in bulkWords)
+            public wordIDs()
             {
-                if (!allWords.allIDs.name2ID.ContainsKey(oneWord.n))
-                {
+                this.PartitionKey = beqDef.c_partWord;
+                this.RowKey = beqDef.c_rowWordWID;
 
-                    tmpWordID = 'W' + (allWords.allIDs.name2ID.Count + 1).ToString("d6");
-                    allWords.allIDs.addN2I(oneWord.n, tmpWordID);
-                }
+                reload();
             }
-            await saveWords(tabCats, allWords);
-            return new OkObjectResult("");
+
+            public wordIDs(string partition = beqDef.c_partWord, string rowkey = beqDef.c_rowWordWID)
+            {
+                this.PartitionKey = beqDef.c_partWord;
+                this.RowKey = beqDef.c_rowWordWID;
+
+                reload();
+            }
+
+            public void reload()
+            {
+                name2ID = JsonConvert.DeserializeObject<Dictionary<string, string>>(JN2I);
+                if (name2ID == null)
+                    name2ID = new Dictionary<string, string>();
+            }
+
+            public void addN2I(string name, string WID)
+            {
+                if (!name2ID.ContainsKey(name))
+                    name2ID.Add(name, WID);
+
+                JN2I = JsonConvert.SerializeObject(name2ID);
+            }
+
+            public string getID(string name)
+            {
+                string tmpRet = null;
+                if (name2ID.ContainsKey(name))
+                    tmpRet = name2ID[name];
+
+                return tmpRet;
+            }
         }
 
+        /// <summary>
+        /// KIDs pro WID
+        /// </summary>
+        public class wordKIDS : TableEntity
+        {
+            /// <summary>
+            /// KIDs per WID
+            /// </summary>
+            public Dictionary<string, List<string>> wordKIDs;
+            public string JSonWKID { set; get; } = "";
+
+            public wordKIDS()
+            {
+                this.PartitionKey = beqDef.c_partWord;
+                this.RowKey = beqDef.c_rowWordKID;
+
+                reload();
+            }
+            public wordKIDS(string partition = beqDef.c_partWord, string rowkey = beqDef.c_rowWordKID)
+            {
+                this.PartitionKey = beqDef.c_partWord;
+                this.RowKey = beqDef.c_rowWordKID;
+
+                reload();
+            }
+
+            public void reload()
+            {
+                wordKIDs = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(JSonWKID);
+                if (wordKIDs == null)
+                    wordKIDs = new Dictionary<string, List<string>>();
+            }
+
+            public void addKID(string WID, string KID)
+            {
+                List<string> aKID = new List<string>();
+                if (!wordKIDs.ContainsKey(WID))
+                    wordKIDs.Add(WID, aKID);
+                else
+                    aKID = wordKIDs[WID];
+
+                aKID.Add(KID);
+
+                wordKIDs[WID] = aKID;
+
+                JSonWKID = JsonConvert.SerializeObject(wordKIDs);
+            }
+        }
+
+        public class fullWord
+        {
+            public wordKIDS allKIDS = new wordKIDS();
+            public wordIDs allIDs = new wordIDs();
+        }
+    */
+
+    /// <summary>
+    /// Secondary index for words - get ID from name first if necessary,
+    /// Name class also contains number of subclasses
+    /// </summary>
+    public class WordI2N : TableEntity
+    {
+        public string fullName { get; set; } = "";
+        public WordI2N()
+        {
+            PartitionKey = beqDef.partWordI2N;
+            RowKey = "";
+        }
+
+        /// <summary>
+        /// ROWKEY DARF NICHT LEER SEIN!
+        /// </summary>
+        /// <param name="partKey">fixer Wert, ignore</param>
+        /// <param name="rowKey">ID des Worts, WID</param>
+        public WordI2N(string partKey = beqDef.partWordI2N, string i_rowKey = "")
+        {
+            PartitionKey = partKey;
+            RowKey = i_rowKey;
+        }
+
+        public void setWID(string i_WID)
+        {
+            RowKey = i_WID;
+        }
+
+        public void setName(string i_fullName)
+        {
+            fullName = i_fullName;
+        }
+    }
+
+    public class WordN2I : TableEntity
+    {
+        public string WID { get; set; } = "";
+
+        public WordN2I()
+        {
+            PartitionKey = beqDef.partWordN2I;
+            RowKey = "";
+        }
+
+        public WordN2I(string partKey = beqDef.partWordN2I, string i_rowKey = "")
+        {
+            PartitionKey = partKey;
+            RowKey = i_rowKey;
+        }
+
+        public void setWID(string i_WID)
+        {
+            WID = i_WID;
+        }
+
+        public void setName(string i_Name)
+        {
+            RowKey = i_Name;
+        }
+    }
+
+    public class Word2Cat : TableEntity
+    {
+        public string intCatList { set; get; } = "";
+
+        public List<string> catList;
+        public Word2Cat()
+        {
+            PartitionKey = beqDef.partWord2Cat;
+            RowKey = "";
+            reload();
+        }
+        public Word2Cat(string partKey = beqDef.partWord2Cat, string rowKey = "")
+        {
+            PartitionKey = partKey;
+            RowKey = rowKey;
+
+            reload();
+        }
+
+        public void reload()
+        {
+            catList = JsonConvert.DeserializeObject<List<string>>(intCatList);
+            catList = catList ?? new List<string>();
+        }
+
+        public void setWord(string WID)
+        {
+            RowKey = WID;
+        }
+
+        public void addCat(string KID)
+        {
+            catList.Add(KID);
+            intCatList = JsonConvert.SerializeObject(catList);
+        }
+    }
+
+    public class Cat2Word : TableEntity
+    {
+        public string intWordList { set; get; } = "";
+
+        public List<string> wordList;
+        public Cat2Word()
+        {
+            PartitionKey = beqDef.partCat2Words;
+            RowKey = "";
+            reload();
+        }
+        public Cat2Word(string partKey = beqDef.partCat2Words, string rowKey = "")
+        {
+            PartitionKey = partKey;
+            RowKey = rowKey;
+
+            reload();
+        }
+
+        public void reload()
+        {
+            wordList = JsonConvert.DeserializeObject<List<string>>(intWordList);
+            wordList = wordList ?? new List<string>();
+        }
+
+        public void setCat(string KID)
+        {
+            RowKey = KID;
+        }
+
+        public void addWord(string WID)
+        {
+            wordList.Add(WID);
+            intWordList = JsonConvert.SerializeObject(wordList);
+        }
+    }
+
+    public static partial class beq_categorization
+    {
 
         [FunctionName("catWord")]
         public static async Task<IActionResult> catWord(
@@ -545,149 +590,208 @@ namespace tlhingan.beq
             string i_WID = req.Query["WID"];
             string i_KID = req.Query["KID"];
 
-            i_KID = i_KID ?? "";
+            string i_word = req.Query["fullWord"];
+            string i_cat = req.Query["catName"];
+
+            i_word = i_word ?? "";
+            i_cat = i_cat ?? "";
+
             i_WID = i_WID ?? "";
+            i_KID = i_KID ?? "";
 
-            if (i_KID != "" && i_WID != "")
+            await intCatWord(tabCats, i_WID, i_KID, i_word, i_cat);
+
+            return new OkObjectResult("");
+        }
+
+        public static async Task<IActionResult> intCatWord(CloudTable tabCats, string i_WID, string i_KID, string i_word, string i_cat)
+        {
+            //ID anhand vollständigem Bezeichner nachlesen
+            if (i_WID == "")
             {
-                fullWord allWords = getWordsData(tabCats).Result;
-                fullCat allCat = getCatsData(tabCats).Result;
+                TableOperation query = TableOperation.Retrieve<WordN2I>(beqDef.partWordN2I, i_word);
+                TableResult tabRes = await tabCats.ExecuteAsync(query);
+                WordN2I tmpWN2I = (WordN2I)tabRes.Result;
+                tmpWN2I = tmpWN2I ?? new WordN2I();
+                i_WID = tmpWN2I.WID;
+            }
 
-                if (allWords.allIDs.name2ID.ContainsValue(i_WID) && allCat.allIDs.name2ID.ContainsValue(i_KID))
-                {
-                    allCat.allWIDs.addWID(i_KID, i_WID);
-                    allWords.allKIDS.addKID(i_WID, i_KID);
+            if (i_KID == "")
+            {
+                TableOperation query = TableOperation.Retrieve<CatN2I>(beqDef.partCatN2I, i_cat);
+                TableResult tabRes = await tabCats.ExecuteAsync(query);
+                CatN2I tmpCN2I = (CatN2I)tabRes.Result;
+                tmpCN2I = tmpCN2I ?? new CatN2I();
+                i_KID = tmpCN2I.KID;
+            }
 
-                    await saveCats(tabCats, allCat);
-                    await saveWords(tabCats, allWords);
-                }
+            if (i_WID != "" && i_KID != "")
+            {
+                TableOperation query = TableOperation.Retrieve<Word2Cat>(beqDef.partWord2Cat, i_WID);
+                TableResult tabRes = await tabCats.ExecuteAsync(query);
+                Word2Cat newW2C = (Word2Cat)tabRes.Result;
+                newW2C = newW2C ?? new Word2Cat();
+                newW2C.reload();
+
+                newW2C.setWord(i_WID);
+                newW2C.addCat(i_KID);
+
+                var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newW2C));
+
+                query = TableOperation.Retrieve<Word2Cat>(beqDef.partCat2Words, i_KID);
+                tabRes = await tabCats.ExecuteAsync(query);
+                Cat2Word newC2W = (Cat2Word)tabRes.Result;
+                newC2W = newC2W ?? new Cat2Word();
+                newC2W.reload();
+
+                newC2W.setCat(i_KID);
+                newC2W.addWord(i_WID);
+
+                await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newC2W));
             }
             return new OkObjectResult("");
         }
 
-        [FunctionName("catWordBulk")]
-        public static async Task<IActionResult> catWordBulk(
+        [FunctionName("createWord")]
+        public static async Task<IActionResult> createWord(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
             //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
             [Table("categorization")] CloudTable tabCats,
             ILogger log)
         {
+            string tmpWID = "";
+            string i_wordName = req.Query["fullWord"];
+            i_wordName = i_wordName ?? "";
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            List<bulkW2CData> bulkCW = JsonConvert.DeserializeObject<List<bulkW2CData>>(requestBody);
-
-            fullWord allWords = getWordsData(tabCats).Result;
-            fullCat allCat = getCatsData(tabCats).Result;
-
-            foreach (bulkW2CData c2w in bulkCW)
+            if (i_wordName != "")
             {
-                string KID = allCat.allIDs.name2ID[c2w.k];
-                string WID = allWords.allIDs.name2ID[c2w.n];
-
-                if (allWords.allIDs.name2ID.ContainsKey(WID) && allCat.allIDs.name2ID.ContainsKey(KID))
+                //Do we know this word already?
+                TableOperation query = TableOperation.Retrieve<WordN2I>(beqDef.partWordN2I, i_wordName);
+                TableResult tabRes = await tabCats.ExecuteAsync(query);
+                if (tabRes.Result == null)
                 {
-                    allCat.allWIDs.addWID(KID, WID);
-                    allWords.allKIDS.addKID(WID, KID);
+                    tmpWID = 'W' + getNextWordNumber(tabCats).Result.ToString("d6");
+
+                    WordN2I newWordN2I = new WordN2I();
+                    newWordN2I.setName(i_wordName);
+                    newWordN2I.setWID(tmpWID);
+
+                    WordI2N newWordI2N = new WordI2N();
+                    newWordI2N.setName(i_wordName);
+                    newWordI2N.setWID(tmpWID);
+
+                    var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordN2I));
+                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordI2N));
                 }
             }
 
-            await saveCats(tabCats, allCat);
-            await saveWords(tabCats, allWords);
+            return new OkObjectResult(tmpWID);
+        }
+
+        [FunctionName("createCategBulk")]
+        public static async Task<IActionResult> createCategBulk(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
+        {
+            List<bulkCatData> allBCD;
+
+            //Bulk data - array of objects with name, langu, desc as attributes
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            allBCD = JsonConvert.DeserializeObject<List<bulkCatData>>(requestBody);
+
+            string dummy = "";
+            foreach(bulkCatData oneBCD in allBCD)
+                dummy = intCreateCateg(tabCats, oneBCD.n, oneBCD.l, oneBCD.d).Result.ToString();
+
             return new OkObjectResult("");
         }
 
-        private static async Task<fullCat> getCatsData(CloudTable tabCats)
+        [FunctionName("createCateg")]
+        public static async Task<IActionResult> createCateg(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
         {
-            fullCat tmpRet = new fullCat();
+            string newKID = "";
+            string i_catName = req.Query["catName"];
+            string i_catDesc = HttpUtility.UrlDecode(req.Query["catDesc"]);
+            string i_catDLan = req.Query["catDLan"];
 
-            //Get all category IDs from table
-            TableOperation query = TableOperation.Retrieve<catIDs>(beqDef.c_partCat, beqDef.c_rowCatKid);
+            i_catName = i_catName ?? "";
+
+            if (i_catName != "")
+                newKID = intCreateCateg(tabCats, i_catName, i_catDLan, i_catDesc).Result.ToString();
+
+            return new OkObjectResult(newKID);
+        }
+
+        public static async Task<IActionResult> intCreateCateg(CloudTable tabCats, string i_catName, string i_catDLan, string i_catDesc)
+        {
+            string newKID = "";
+            //Do we know this category already?
+            TableOperation query = TableOperation.Retrieve<CatN2I>(beqDef.partCatN2I, i_catName);
             TableResult tabRes = await tabCats.ExecuteAsync(query);
+            if (tabRes.Result == null)
+            {
+                newKID = "";
+                //Wir kennen die kategorie noch nicht, prüfen ob es eine Unterkategorie ist,
+                //dann müssen wir die ID der Oberkategorie finden
+                if (i_catName.Contains('_'))
+                {
+                    string[] subCats = i_catName.Split('_');
+                    string supCat = string.Join('_', subCats, 0, subCats.Length - 1);
 
-            //Entweder bekommen wir welche oder wir fangen mit einer leeren STruktur an
-            tmpRet.allIDs = new catIDs();
-            if (tabRes.Result != null)
-                tmpRet.allIDs = (catIDs)tabRes.Result;
+                    //Gibt es die Oberkategorie schon?
+                    query = TableOperation.Retrieve<CatN2I>(beqDef.partCatN2I, supCat);
+                    tabRes = await tabCats.ExecuteAsync(query);
+                    //Superkategorie vorhanden
+                    if (tabRes.Result != null)
+                    {
+                        //Supercategory exists, increase subcategory counter and use it for new category
+                        CatN2I superCat = (CatN2I)tabRes.Result;
+                        superCat.subCatCount++;
+                        newKID = superCat.KID + "." + superCat.subCatCount.ToString("d3");
 
-            //Get all category descriptions from table
-            query = TableOperation.Retrieve<catDescs>(beqDef.c_partCat, beqDef.c_rowCatDesc);
-            tabRes = await tabCats.ExecuteAsync(query);
+                        //Write back supercat, no need to wait
+                        TableOperation writeBack = TableOperation.InsertOrReplace(superCat);
+                        var dummyReturn = tabCats.ExecuteAsync(writeBack);
+                    }
+                    else
+                    {
+                        //Oberkategorie existiert noch nicht -> Fehler
+                    }
+                }
+                else
+                {
+                    //Keine Unterkategorie, komplett neu
+                    newKID = "K" + getNextCatNumber(tabCats).Result.ToString("d3");
+                }
 
-            //Entweder bekommen wir welche oder wir fangen mit einer leeren STruktur an
-            tmpRet.allDescs = new catDescs();
-            if (tabRes.Result != null)
-                tmpRet.allDescs = (catDescs)tabRes.Result;
+                //Wir haben eine ID, Kategorie kann erstellt werden
+                if (newKID != "")
+                {
+                    CatN2I newCatN2I = new CatN2I();
+                    newCatN2I.setKID(newKID);
+                    newCatN2I.setName(i_catName);
 
-            //Get all category WIDs from table
-            query = TableOperation.Retrieve<catWIDS>(beqDef.c_partCat, beqDef.c_rowCatWID);
-            tabRes = await tabCats.ExecuteAsync(query);
+                    CatI2N newCatI2N = new CatI2N();
+                    newCatI2N.setKID(newKID);
+                    newCatI2N.setName(i_catName);
 
-            //Entweder bekommen wir welche oder wir fangen mit einer leeren STruktur an
-            tmpRet.allWIDs = new catWIDS();
-            if (tabRes.Result != null)
-                tmpRet.allWIDs = (catWIDS)tabRes.Result;
+                    CatI2Desc newCatDesc = new CatI2Desc();
+                    newCatDesc.setKID(newKID);
+                    newCatDesc.setDesc(i_catDLan, i_catDesc);
 
-            //Reload all data from stored Json-String into classes
-            tmpRet.allIDs.reload();
-            tmpRet.allDescs.reload();
-            tmpRet.allWIDs.reload();
-
-            return tmpRet;
-        }
-
-        private static async Task<fullWord> getWordsData(CloudTable tabCats)
-        {
-            fullWord tmpRet = new fullWord();
-
-            //Get all word IDs from table
-            TableOperation query = TableOperation.Retrieve<wordIDs>(beqDef.c_partWord, beqDef.c_rowWordWID);
-            TableResult tabRes = await tabCats.ExecuteAsync(query);
-
-            //Entweder bekommen wir welche oder wir fangen mit einer leeren STruktur an
-            tmpRet.allIDs = new wordIDs();
-            if (tabRes.Result != null)
-                tmpRet.allIDs = (wordIDs)tabRes.Result;
-
-            //Get all word KIDs from table
-            query = TableOperation.Retrieve<wordKIDS>(beqDef.c_partWord, beqDef.c_rowWordKID);
-            tabRes = await tabCats.ExecuteAsync(query);
-
-            //Entweder bekommen wir welche oder wir fangen mit einer leeren STruktur an
-            tmpRet.allKIDS = new wordKIDS();
-            if (tabRes.Result != null)
-                tmpRet.allKIDS = (wordKIDS)tabRes.Result;
-
-            //Reload all data from stored Json-String into classes
-            tmpRet.allIDs.reload();
-            tmpRet.allKIDS.reload();
-
-            return tmpRet;
-        }
-
-
-        private static async Task<IActionResult> saveCats(CloudTable tabCats, fullCat allCat)
-        {
-            TableOperation addCat = TableOperation.InsertOrReplace(allCat.allIDs);
-            await tabCats.ExecuteAsync(addCat);
-
-            addCat = TableOperation.InsertOrReplace(allCat.allDescs);
-            await tabCats.ExecuteAsync(addCat);
-
-            addCat = TableOperation.InsertOrReplace(allCat.allWIDs);
-            await tabCats.ExecuteAsync(addCat);
-
-            return new OkObjectResult("");
-        }
-
-        private static async Task<IActionResult> saveWords(CloudTable tabCats, fullWord allWord)
-        {
-            TableOperation addWord = TableOperation.InsertOrReplace(allWord.allIDs);
-            await tabCats.ExecuteAsync(addWord);
-
-            addWord = TableOperation.InsertOrReplace(allWord.allKIDS);
-            await tabCats.ExecuteAsync(addWord);
-
-            return new OkObjectResult("");
+                    //die drei sollten sich nicht im Weg stehen, wenn wir auf den letzten warten haben wie die ersten hoffentlich auch schon
+                    var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatN2I));
+                    dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatI2N));
+                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatDesc));
+                }
+            }
+            return new OkObjectResult(newKID);
         }
 
     }
