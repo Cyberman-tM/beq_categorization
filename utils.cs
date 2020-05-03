@@ -14,8 +14,6 @@ using Newtonsoft.Json;
 
 namespace tlhingan.beq
 {
-
-
     public class bulkCatData
     {
         public string n;

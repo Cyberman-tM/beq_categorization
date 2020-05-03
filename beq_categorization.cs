@@ -579,6 +579,7 @@ namespace tlhingan.beq
 
     public static partial class beq_categorization
     {
+        public static TableBatchOperation bulkTO;
 
         [FunctionName("catWord")]
         public static async Task<IActionResult> catWord(
@@ -618,7 +619,7 @@ namespace tlhingan.beq
             allC2W = JsonConvert.DeserializeObject<List<bulkW2CData>>(requestBody);
 
             string dummy = "";
-            foreach(bulkW2CData oneC2W in allC2W)
+            foreach (bulkW2CData oneC2W in allC2W)
                 dummy = intCatWord(tabCats, "", "", oneC2W.n, oneC2W.k).Result.ToString();
 
             return new OkObjectResult("");
@@ -749,9 +750,24 @@ namespace tlhingan.beq
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             allBCD = JsonConvert.DeserializeObject<List<bulkCatData>>(requestBody);
 
-            string dummy = "";
+            mainCatData MCD = new mainCatData();
+
+            TableOperation query = TableOperation.Retrieve<mainCatData>("mainCatData", "count");
+            TableResult tabRes = await tabCats.ExecuteAsync(query);
+            if (tabRes.Result != null)
+                MCD = (mainCatData)tabRes.Result;
+
+            lastBulkCat = MCD.mainCatCount;
+            bulkTO = new TableBatchOperation();
+
             foreach (bulkCatData oneBCD in allBCD)
-                dummy = intCreateCateg(tabCats, oneBCD.n, oneBCD.l, oneBCD.d, true).Result.ToString();
+                await intCreateCateg(tabCats, oneBCD.n, oneBCD.l, oneBCD.d, true);
+
+            MCD.mainCatCount = lastBulkCat;
+            TableOperation writeBack = TableOperation.InsertOrReplace(MCD);
+            var dumRet = tabCats.ExecuteAsync(writeBack);
+            await tabCats.ExecuteBatchAsync(bulkTO);
+            bulkTO = null;            
 
             return new OkObjectResult("");
         }
@@ -770,22 +786,8 @@ namespace tlhingan.beq
 
             i_catName = i_catName ?? "";
 
-            mainCatData MCD = new mainCatData();
-
-            TableOperation query = TableOperation.Retrieve<mainCatData>("mainCatData", "count");
-            TableResult tabRes = await tabCats.ExecuteAsync(query);
-            if (tabRes.Result != null)
-                MCD = (mainCatData)tabRes.Result;
-
-            lastBulkCat = MCD.mainCatCount;
-
             if (i_catName != "")
                 newKID = intCreateCateg(tabCats, i_catName, i_catDLan, i_catDesc, false).Result.ToString();
-
-
-            MCD.mainCatCount = lastBulkCat;
-            TableOperation writeBack = TableOperation.InsertOrReplace(MCD);
-            await tabCats.ExecuteAsync(writeBack);
 
             return new OkObjectResult(newKID);
         }
@@ -850,10 +852,16 @@ namespace tlhingan.beq
                     newCatDesc.setKID(newKID);
                     newCatDesc.setDesc(i_catDLan, i_catDesc);
 
-                    //die drei sollten sich nicht im Weg stehen, wenn wir auf den letzten warten haben wie die ersten hoffentlich auch schon
+                    
                     var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatN2I));
-                    dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatI2N));
-                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatDesc));
+                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatI2N));
+
+                    //Kategoriebeschriftungen können auch nachträglich gespeichert werden, die können wir sammeln
+                    if (!bulk)
+                        await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatDesc));
+                    else
+                        bulkTO.Add(TableOperation.InsertOrReplace(newCatDesc));
+
                 }
             }
             return new OkObjectResult(newKID);
