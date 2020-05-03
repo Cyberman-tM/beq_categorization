@@ -70,6 +70,7 @@ namespace tlhingan.beq
 
     public static partial class beq_categorization
     {
+        private static int lastBulkCat = 0;
 
         /// <summary>
         ///     Wake up

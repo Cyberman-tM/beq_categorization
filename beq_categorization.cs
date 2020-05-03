@@ -751,7 +751,7 @@ namespace tlhingan.beq
 
             string dummy = "";
             foreach (bulkCatData oneBCD in allBCD)
-                dummy = intCreateCateg(tabCats, oneBCD.n, oneBCD.l, oneBCD.d).Result.ToString();
+                dummy = intCreateCateg(tabCats, oneBCD.n, oneBCD.l, oneBCD.d, true).Result.ToString();
 
             return new OkObjectResult("");
         }
@@ -770,13 +770,27 @@ namespace tlhingan.beq
 
             i_catName = i_catName ?? "";
 
+            mainCatData MCD = new mainCatData();
+
+            TableOperation query = TableOperation.Retrieve<mainCatData>("mainCatData", "count");
+            TableResult tabRes = await tabCats.ExecuteAsync(query);
+            if (tabRes.Result != null)
+                MCD = (mainCatData)tabRes.Result;
+
+            lastBulkCat = MCD.mainCatCount;
+
             if (i_catName != "")
-                newKID = intCreateCateg(tabCats, i_catName, i_catDLan, i_catDesc).Result.ToString();
+                newKID = intCreateCateg(tabCats, i_catName, i_catDLan, i_catDesc, false).Result.ToString();
+
+
+            MCD.mainCatCount = lastBulkCat;
+            TableOperation writeBack = TableOperation.InsertOrReplace(MCD);
+            await tabCats.ExecuteAsync(writeBack);
 
             return new OkObjectResult(newKID);
         }
 
-        public static async Task<IActionResult> intCreateCateg(CloudTable tabCats, string i_catName, string i_catDLan, string i_catDesc)
+        public static async Task<IActionResult> intCreateCateg(CloudTable tabCats, string i_catName, string i_catDLan, string i_catDesc, bool bulk)
         {
             string newKID = "";
             //Do we know this category already?
@@ -815,7 +829,10 @@ namespace tlhingan.beq
                 else
                 {
                     //Keine Unterkategorie, komplett neu
-                    newKID = "K" + getNextCatNumber(tabCats).Result.ToString("d3");
+                    if (!bulk)
+                        newKID = "K" + getNextCatNumber(tabCats).Result.ToString("d3");
+                    else
+                        newKID = "K" + (++lastBulkCat).ToString("d3");
                 }
 
                 //Wir haben eine ID, Kategorie kann erstellt werden
