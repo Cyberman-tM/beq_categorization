@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Web;
 using System.Xml.Serialization;
@@ -577,9 +578,33 @@ namespace tlhingan.beq
         }
     }
 
+    public class tmpData : TableEntity
+    {
+
+        public string daten { get; set; } = "";
+
+        public tmpData()
+        {
+            PartitionKey = "tmp";
+            RowKey = "data";
+
+        }
+
+        public tmpData(string partKey = "tmp", string rowkey = "data")
+        {
+            PartitionKey = partKey;
+            RowKey = rowkey;
+        }
+    }
     public static partial class beq_categorization
     {
         public static TableBatchOperation bulkTO;
+        public static TableBatchOperation bulkTO2;
+        public static TableBatchOperation bulkTO3;
+        private static int lastBulkCat = 0;
+        private static int lastBulkWord = 0;
+
+        private static List<string> tmpAllW2NI;
 
         [FunctionName("catWord")]
         public static async Task<IActionResult> catWord(
@@ -617,15 +642,29 @@ namespace tlhingan.beq
             //Bulk data - array of objects with name, langu, desc as attributes
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             allC2W = JsonConvert.DeserializeObject<List<bulkW2CData>>(requestBody);
+            string dummy;
 
-            string dummy = "";
+            int bCount = 0;
             foreach (bulkW2CData oneC2W in allC2W)
-                dummy = intCatWord(tabCats, "", "", oneC2W.n, oneC2W.k).Result.ToString();
+            {
+                bCount++;
+                await intCatWord(tabCats, "", "", oneC2W.n, oneC2W.k, true);
+                if (bCount == 99)
+                {
+                    dummy = tabCats.ExecuteBatchAsync(bulkTO).Result.ToString(); ;
+                    dummy = tabCats.ExecuteBatchAsync(bulkTO2).Result.ToString(); ;
+                    bCount = 0;
+                    bulkTO.Clear();
+                    bulkTO2.Clear();
+                }
+            }
 
+            dummy = tabCats.ExecuteBatchAsync(bulkTO).Result.ToString(); ;
+            dummy = tabCats.ExecuteBatchAsync(bulkTO2).Result.ToString(); ;
             return new OkObjectResult("");
         }
 
-        public static async Task<IActionResult> intCatWord(CloudTable tabCats, string i_WID, string i_KID, string i_word, string i_cat)
+        public static async Task<IActionResult> intCatWord(CloudTable tabCats, string i_WID, string i_KID, string i_word, string i_cat, bool bulk = false)
         {
             //ID anhand vollständigem Bezeichner nachlesen
             if (i_WID == "")
@@ -657,7 +696,11 @@ namespace tlhingan.beq
                 newW2C.setWord(i_WID);
                 newW2C.addCat(i_KID);
 
-                var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newW2C));
+                Task<TableResult> dummyReturn;
+                if (!bulk)
+                    dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newW2C));
+                else
+                    bulkTO.Add(TableOperation.InsertOrReplace(newW2C));
 
                 query = TableOperation.Retrieve<Word2Cat>(beqDef.partCat2Words, i_KID);
                 tabRes = await tabCats.ExecuteAsync(query);
@@ -668,7 +711,10 @@ namespace tlhingan.beq
                 newC2W.setCat(i_KID);
                 newC2W.addWord(i_WID);
 
-                await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newC2W));
+                if (!bulk)
+                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newC2W));
+                else
+                    bulkTO2.Add(TableOperation.InsertOrReplace(newC2W));
             }
             return new OkObjectResult("");
         }
@@ -703,24 +749,105 @@ namespace tlhingan.beq
 
             //Bulk data - array of objects with name, langu, desc as attributes
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            if (requestBody == null || requestBody == "")
+                return null;
+
             allBW = JsonConvert.DeserializeObject<List<bulkWordData>>(requestBody);
 
-            string dummy = "";
+            mainWordData MWD = new mainWordData();
+            TableOperation query = TableOperation.Retrieve<mainWordData>("mainWordData", "count");
+            TableResult tabRes = await tabCats.ExecuteAsync(query);
+            if (tabRes.Result != null)
+                MWD = (mainWordData)tabRes.Result;
+
+            MWD.wordCount++;
+            lastBulkWord = MWD.wordCount;
+
+            bulkTO = new TableBatchOperation();
+            bulkTO2 = new TableBatchOperation();
+
+            tmpAllW2NI = await intGetAllWordNames(tabCats);
+
+            int bCount = 0;
+            int xcount = 0;
+            List<Task<IList<TableResult>>> batchTasks = new List<Task<IList<TableResult>>>();
             foreach (bulkWordData oneWord in allBW)
-                dummy = intCreateWord(tabCats, oneWord.n).Result.ToString();
+            {
+                xcount++;
+                if (oneWord.n == null || oneWord.n == "" || bCount == 54)
+                {
+                    var x = 0;
+                }
+                bCount++;
+                await intCreateWord(tabCats, oneWord.n, true);
+                if (bCount == 99)
+                {
+                    if (bulkTO.Count > 0)
+                        batchTasks.Add(tabCats.ExecuteBatchAsync(bulkTO));
+                    if (bulkTO2.Count > 0)
+                        batchTasks.Add(tabCats.ExecuteBatchAsync(bulkTO2));
+                    bCount = 0;
+                    bulkTO.Clear();
+                    bulkTO2.Clear();
+                }
+            }
+
+            MWD.wordCount = lastBulkWord;
+            TableOperation writeBack = TableOperation.InsertOrReplace(MWD);
+            var dummy = tabCats.ExecuteAsync(writeBack);
+
+            if (bulkTO.Count > 0)
+                batchTasks.Add(tabCats.ExecuteBatchAsync(bulkTO));
+            if (bulkTO2.Count > 0)
+                batchTasks.Add(tabCats.ExecuteBatchAsync(bulkTO2));
+
+            Task.WaitAll(batchTasks.ToArray());
 
             return new OkObjectResult("");
         }
 
-        public static async Task<IActionResult> intCreateWord(CloudTable tabCats, string i_wordName)
+        public static async Task<List<string>> intGetAllWordNames(CloudTable tabCats)
+        {
+            //Prefetch all known words
+            List<WordN2I> _tmpAllW2NI = new List<WordN2I>();
+            TableContinuationToken tok = new TableContinuationToken();
+            TableQuery<WordN2I> newQuery = new TableQuery<WordN2I>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, beqDef.partWordN2I));
+            newQuery.TakeCount = 9999;
+            do
+            {
+                TableQuerySegment<WordN2I> segment = await tabCats.ExecuteQuerySegmentedAsync(newQuery, tok);
+                tok = segment.ContinuationToken;
+                _tmpAllW2NI.AddRange(segment.Results);
+            }
+            while (tok != null);
+            tmpAllW2NI = new List<string>();
+            tmpAllW2NI.AddRange(_tmpAllW2NI.Select(x => x.RowKey).ToArray());
+
+            return tmpAllW2NI;
+        }
+
+        public static async Task<IActionResult> intCreateWord(CloudTable tabCats, string i_wordName, bool bulk = false)
         {
             string tmpWID = "";
             //Do we know this word already?
-            TableOperation query = TableOperation.Retrieve<WordN2I>(beqDef.partWordN2I, i_wordName);
-            TableResult tabRes = await tabCats.ExecuteAsync(query);
-            if (tabRes.Result == null)
+            TableResult tabRes = new TableResult();
+            tabRes.Result = null;
+            int wordIndex = -1;
+            if (!bulk)
             {
-                tmpWID = 'W' + getNextWordNumber(tabCats).Result.ToString("d6");
+                TableOperation query = TableOperation.Retrieve<WordN2I>(beqDef.partWordN2I, i_wordName);
+                tabRes = await tabCats.ExecuteAsync(query);
+            }
+            else
+            {
+                wordIndex = tmpAllW2NI.IndexOf(i_wordName);
+            }
+            if (tabRes.Result == null && wordIndex == -1)
+            {
+                if (!bulk)
+                    tmpWID = 'W' + getNextWordNumber(tabCats).Result.ToString("d6");
+                else
+                    tmpWID = 'W' + (++lastBulkWord).ToString("d6");
 
                 WordN2I newWordN2I = new WordN2I();
                 newWordN2I.setName(i_wordName);
@@ -730,8 +857,17 @@ namespace tlhingan.beq
                 newWordI2N.setName(i_wordName);
                 newWordI2N.setWID(tmpWID);
 
-                var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordN2I));
-                await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordI2N));
+                if (!bulk)
+                {
+                    var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordN2I));
+                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordI2N));
+                }
+                else
+                {
+                    bulkTO.Add(TableOperation.InsertOrReplace(newWordN2I));
+                    bulkTO2.Add(TableOperation.InsertOrReplace(newWordI2N));
+                }
+
             }
             return new OkObjectResult("");
         }
@@ -766,8 +902,9 @@ namespace tlhingan.beq
             MCD.mainCatCount = lastBulkCat;
             TableOperation writeBack = TableOperation.InsertOrReplace(MCD);
             var dumRet = tabCats.ExecuteAsync(writeBack);
-            await tabCats.ExecuteBatchAsync(bulkTO);
-            bulkTO = null;            
+            if (bulkTO.Count > 0)
+                await tabCats.ExecuteBatchAsync(bulkTO);
+            bulkTO = null;
 
             return new OkObjectResult("");
         }
@@ -852,7 +989,7 @@ namespace tlhingan.beq
                     newCatDesc.setKID(newKID);
                     newCatDesc.setDesc(i_catDLan, i_catDesc);
 
-                    
+
                     var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatN2I));
                     await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newCatI2N));
 
