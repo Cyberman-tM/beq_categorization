@@ -604,6 +604,26 @@ namespace tlhingan.beq
             return new OkObjectResult("");
         }
 
+        [FunctionName("catWordBulk")]
+        public static async Task<IActionResult> catWordBulk(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+            [Table("categorization")] CloudTable tabCats,
+            ILogger log)
+        {
+            List<bulkW2CData> allC2W;
+
+            //Bulk data - array of objects with name, langu, desc as attributes
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            allC2W = JsonConvert.DeserializeObject<List<bulkW2CData>>(requestBody);
+
+            string dummy = "";
+            foreach(bulkW2CData oneC2W in allC2W)
+                dummy = intCatWord(tabCats, "", "", oneC2W.n, oneC2W.k).Result.ToString();
+
+            return new OkObjectResult("");
+        }
+
         public static async Task<IActionResult> intCatWord(CloudTable tabCats, string i_WID, string i_KID, string i_word, string i_cat)
         {
             //ID anhand vollständigem Bezeichner nachlesen
@@ -665,28 +685,56 @@ namespace tlhingan.beq
 
             if (i_wordName != "")
             {
-                //Do we know this word already?
-                TableOperation query = TableOperation.Retrieve<WordN2I>(beqDef.partWordN2I, i_wordName);
-                TableResult tabRes = await tabCats.ExecuteAsync(query);
-                if (tabRes.Result == null)
-                {
-                    tmpWID = 'W' + getNextWordNumber(tabCats).Result.ToString("d6");
-
-                    WordN2I newWordN2I = new WordN2I();
-                    newWordN2I.setName(i_wordName);
-                    newWordN2I.setWID(tmpWID);
-
-                    WordI2N newWordI2N = new WordI2N();
-                    newWordI2N.setName(i_wordName);
-                    newWordI2N.setWID(tmpWID);
-
-                    var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordN2I));
-                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordI2N));
-                }
+                tmpWID = intCreateWord(tabCats, i_wordName).Result.ToString();
             }
 
             return new OkObjectResult(tmpWID);
         }
+
+        [FunctionName("createWordBulk")]
+        public static async Task<IActionResult> createWordBulk(
+        [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+        //Offenbar bekommt die Funktion automatisch ein korrekt eingerichtetes Objekt für die Tabelle mitgegeben
+        [Table("categorization")] CloudTable tabCats,
+        ILogger log)
+        {
+            List<bulkWordData> allBW;
+
+            //Bulk data - array of objects with name, langu, desc as attributes
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            allBW = JsonConvert.DeserializeObject<List<bulkWordData>>(requestBody);
+
+            string dummy = "";
+            foreach (bulkWordData oneWord in allBW)
+                dummy = intCreateWord(tabCats, oneWord.n).Result.ToString();
+
+            return new OkObjectResult("");
+        }
+
+        public static async Task<IActionResult> intCreateWord(CloudTable tabCats, string i_wordName)
+        {
+            string tmpWID = "";
+            //Do we know this word already?
+            TableOperation query = TableOperation.Retrieve<WordN2I>(beqDef.partWordN2I, i_wordName);
+            TableResult tabRes = await tabCats.ExecuteAsync(query);
+            if (tabRes.Result == null)
+            {
+                tmpWID = 'W' + getNextWordNumber(tabCats).Result.ToString("d6");
+
+                WordN2I newWordN2I = new WordN2I();
+                newWordN2I.setName(i_wordName);
+                newWordN2I.setWID(tmpWID);
+
+                WordI2N newWordI2N = new WordI2N();
+                newWordI2N.setName(i_wordName);
+                newWordI2N.setWID(tmpWID);
+
+                var dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordN2I));
+                await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newWordI2N));
+            }
+            return new OkObjectResult("");
+        }
+
 
         [FunctionName("createCategBulk")]
         public static async Task<IActionResult> createCategBulk(
@@ -702,7 +750,7 @@ namespace tlhingan.beq
             allBCD = JsonConvert.DeserializeObject<List<bulkCatData>>(requestBody);
 
             string dummy = "";
-            foreach(bulkCatData oneBCD in allBCD)
+            foreach (bulkCatData oneBCD in allBCD)
                 dummy = intCreateCateg(tabCats, oneBCD.n, oneBCD.l, oneBCD.d).Result.ToString();
 
             return new OkObjectResult("");
