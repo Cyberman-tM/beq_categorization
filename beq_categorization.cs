@@ -693,14 +693,17 @@ namespace tlhingan.beq
                 newW2C = newW2C ?? new Word2Cat();
                 newW2C.reload();
 
-                newW2C.setWord(i_WID);
-                newW2C.addCat(i_KID);
+                if (newW2C.catList.IndexOf(i_KID) < 0)
+                {
+                    newW2C.setWord(i_WID);
+                    newW2C.addCat(i_KID);
 
-                Task<TableResult> dummyReturn;
-                if (!bulk)
-                    dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newW2C));
-                else
-                    bulkTO.Add(TableOperation.InsertOrReplace(newW2C));
+                    Task<TableResult> dummyReturn;
+                    if (!bulk)
+                        dummyReturn = tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newW2C));
+                    else
+                        bulkTO.Add(TableOperation.InsertOrReplace(newW2C));
+                }
 
                 query = TableOperation.Retrieve<Word2Cat>(beqDef.partCat2Words, i_KID);
                 tabRes = await tabCats.ExecuteAsync(query);
@@ -708,13 +711,16 @@ namespace tlhingan.beq
                 newC2W = newC2W ?? new Cat2Word();
                 newC2W.reload();
 
-                newC2W.setCat(i_KID);
-                newC2W.addWord(i_WID);
+                if (newC2W.wordList.IndexOf(i_WID) < 0)
+                {
+                    newC2W.setCat(i_KID);
+                    newC2W.addWord(i_WID);
 
-                if (!bulk)
-                    await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newC2W));
-                else
-                    bulkTO2.Add(TableOperation.InsertOrReplace(newC2W));
+                    if (!bulk)
+                        await tabCats.ExecuteAsync(TableOperation.InsertOrReplace(newC2W));
+                    else
+                        bulkTO2.Add(TableOperation.InsertOrReplace(newC2W));
+                }
             }
             return new OkObjectResult("");
         }
@@ -751,6 +757,8 @@ namespace tlhingan.beq
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             if (requestBody == null || requestBody == "")
                 return null;
+
+            log.LogInformation("dummy");
 
             allBW = JsonConvert.DeserializeObject<List<bulkWordData>>(requestBody);
 
@@ -801,7 +809,16 @@ namespace tlhingan.beq
             if (bulkTO2.Count > 0)
                 batchTasks.Add(tabCats.ExecuteBatchAsync(bulkTO2));
 
-            Task.WaitAll(batchTasks.ToArray());
+try
+{
+            //Task.WaitAll(batchTasks.ToArray());
+}
+catch (System.Exception ex)
+{
+    log.LogInformation(ex.Message);
+    throw;
+}
+    
 
             return new OkObjectResult("");
         }
